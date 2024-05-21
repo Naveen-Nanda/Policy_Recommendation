@@ -7,8 +7,8 @@ Original file is located at
     https://colab.research.google.com/drive/1PbNR6v6PDUFjfFOeZvI1wvrLyL70eWOp
 """
 
-'''from google.colab import drive
-drive.mount('/content/gdrive')'''
+from google.colab import drive
+drive.mount('/content/gdrive')
 
 import warnings
 
@@ -39,7 +39,7 @@ retrieve_fine_tuned = client.fine_tuning.jobs.retrieve("ftjob-eFMucjOZST24lrljjL
 llm_model = retrieve_fine_tuned.fine_tuned_model
 gpt_chat = ChatOpenAI(temperature=0, model=llm_model)
 
-pickle_file_path = 'scripts/all_factor_prompts.pkl'
+pickle_file_path = '/content/gdrive/MyDrive/Conservatives-Official/Vegetation/all_factor_prompts.pkl'
 with open(pickle_file_path, 'rb') as file:
     all_factor_prompts = pickle.load(file)
 
@@ -180,19 +180,15 @@ def generate_main_response(main_prompt_template, llm, previous_responses):
 
   # Save the response to a text file
   with open(file_path, 'w') as file:
-    file.write(response)
+    file.write(main_response)
   return response
 
 def generate_response(llm, input_prompts, factors_pred, yield_pred,
                       general_prompt = general_prompt,
                       main_prompt_template = main_prompt_template):
-  try:
-    chains, responses = run_chains(gpt_chat, input_prompts, factors_pred, yield_pred, general_prompt)
-    main_response = generate_main_response(main_prompt_template, gpt_chat, responses)
-    return main_response
-  except Exception as e:
-    print(f"An error occurred: {e}")
-    return None
+  chains, responses = run_chains(gpt_chat, input_prompts, factors_pred, yield_pred, general_prompt)
+  main_response = generate_main_response(main_prompt_template, gpt_chat, responses)
+  return main_response
 
 
 #sample factor predictions
