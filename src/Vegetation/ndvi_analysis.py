@@ -15,16 +15,17 @@ drive.mount('/content/gdrive')
 2. Ndvi Tiff Data Raw - https://drive.google.com/drive/u/0/folders/1m9VIxtjSmBos-YhNcy3asaQptyC5iImj
 """
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torchvision import datasets, transforms
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 """## Downloading NDVI data from Google Earth Engine"""
 
 import ee
+import rasterio
+import numpy as np
+import os
+import pickle
+import georasters as gr
+
 
 # Authenticate and initialize Earth Engine
 ee.Authenticate()
@@ -227,15 +228,11 @@ print('Batch exporting NDVI images for Montana counties from April to September 
 
 """## tif preprocessing"""
 
-!pip install rasterio
+#!pip install rasterio
 
-!pip install georasters
+#!pip install georasters
 
-import rasterio
-import numpy as np
-import os
-import pickle
-import georasters as gr
+
 #import cupy as cp
 
 def tif_plot(img_path):
@@ -249,6 +246,8 @@ def tif_plot(img_path):
     print("Tiff Array Shape:", tiff_array.shape)
 
     return tiff_array
+
+tif_ar = tif_plot('/content/gdrive/MyDrive/GEE_Exports/NDVI_NorthDakota_County_1_Year_2013.tif')
 
 def tif_preprocessing(img_path):
     # Open GeoTIFF file
@@ -775,117 +774,4 @@ pickle_filename = '/content/gdrive/MyDrive/Agri_Policy_Proj/ndvi_yield_all.pkl'
 with open(pickle_filename, 'wb') as f:
   pickle.dump(ndvi_yield_all, f)
 print("File Saved")
-
-import pickle
-import numpy as np
-
-def min_max_normalization(input_array):
-    min = input_array.min()
-    max = input_array.max()
-    return (input_array - min) / (max - min)
-
-def load_ndvi_yield_data(pickle_path):
-    try:
-        # Load the pickled dictionary
-        with open(pickle_path, 'rb') as f:
-            ndvi_yield_preprocessed = pickle.load(f)
-            ndvi = ndvi_yield_preprocessed["NDVI_Array"]
-            yields = ndvi_yield_preprocessed["Yield"]
-            ndvi_new = np.expand_dims(ndvi, axis=1)
-            ndvi_normalized = min_max_normalization(ndvi_new)
-        return ndvi_yield_preprocessed, ndvi_normalized, yields
-    except FileNotFoundError:
-        print(f"Error: File '{pickle_path}' not found.")
-        return None
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return None
-
-pickle_path = '/content/gdrive/MyDrive/Agri_Policy_Proj/ndvi_yield_all.pkl'
-ndvi_yield_preprocessed, ndvi_normalized, yields = load_ndvi_yield_data(pickle_path)
-
-import math
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import os
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import pickle
-import torchvision.models as models
-from torch.utils.data import DataLoader, Dataset
-
-# Define a custom dataset
-class CustomDataset(Dataset):
-  def __init__(self, data):
-      self.data = data
-
-  def __len__(self):
-      return len(self.data)
-
-  def __getitem__(self, idx):
-      return self.data[idx]
-
-def resnet50_features(input_array, batch_size):
-    # Instantiate ResNet-50 model
-    resnet = models.resnet50(weights=None)  # Load without pretrained weights
-    resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-    resnet.fc = nn.Identity()  # Remove the final fully connected layer
-
-    # Assuming you have defined 'device' somewhere in your code
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    resnet.to(device)
-
-    num_batches = len(input_array) // batch_size
-
-    # Define the dataset and data loader
-    dataset = CustomDataset(input_array)
-    data_loader = DataLoader(dataset, batch_size=batch_size)
-
-    # List to store concatenated feature vectors from all batches
-    all_features = []
-
-    # Set the model to evaluation mode
-    resnet.eval()
-
-    # Iterate over the data loader
-    for batch_data in data_loader:
-        # Pass the batch through ResNet-50
-        with torch.no_grad():
-            batch_features = resnet(batch_data.to(device, dtype=torch.float32))
-
-        # Append the feature vectors for the current batch to the list
-        all_features.append(batch_features)
-
-    # Concatenate the feature vectors from all batches along the batch dimension
-    concatenated_features = torch.cat(all_features, dim=0)
-    feature_vectors = concatenated_features.detach().cpu().numpy()
-    return feature_vectors
-
-input_array = ndvi_normalized
-batch_size = 32
-feature_vectors = resnet50_features(input_array, batch_size)
-print("Extracted features shape:", feature_vectors.shape)
-
-ndv_feat_avg = np.mean(feature_vectors, axis=1)
-#print("Average feature vector shape:", ndv_feat_avg.shape)
-
-from sklearn.decomposition import PCA
-pca = PCA(n_components=100)
-ndvi_reduced_data = pca.fit_transform(feature_vectors)
-
-ndv_rd_feat_avg = np.mean(ndvi_reduced_data, axis=1)
-
-from scipy.stats import pearsonr
-
-# Calculate correlation coefficient between NDVI and yield
-correlation_coefficient, p_value = pearsonr(ndv_rd_feat_avg, yields)
-
-print("Correlation Coefficient:", correlation_coefficient)
-print("P-value:", p_value)
-
-
-
-
 
